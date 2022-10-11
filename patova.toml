@@ -1,0 +1,10 @@
+server.port         = 8080
+server.secret       = ''
+
+claims = [
+    "challenge90",
+    "challenge28",
+    "challenge365",
+    "afm",
+    "c+"
+]
