@@ -42,21 +42,31 @@ deleteUser pipe = do
       removeUser pipe user
       S.status status501
 
-deleteClaim :: M.Pipe -> S.ActionM ()
-deleteClaim _ = S.status status501
+isValidClaimReq
+  :: M.Pipe -> T.Text -> T.Text -> Set T.Text -> Bool -> IO Status
+isValidClaimReq pipe user claim allowedClaims on = do
+  exists <- userExists pipe user
+  if user /= "" && claim /= "" && claim `member` allowedClaims && exists
+    then do
+      updated <- updateClaim pipe user claim on
+      if updated
+        then return status200
+        else return status501
+    else return status400
+
+deleteClaim :: M.Pipe -> Set T.Text -> S.ActionM ()
+deleteClaim pipe allowedClaims = do
+  user <- S.param "user" `S.rescue` handleParseError
+  claim <- S.param "claim" `S.rescue` handleParseError
+  status <- liftIO $ isValidClaimReq pipe user claim allowedClaims False
+  S.status status
 
 addClaim :: M.Pipe -> Set T.Text -> S.ActionM ()
 addClaim pipe allowedClaims = do
   user <- S.param "user" `S.rescue` handleParseError
   claim <- S.param "claim" `S.rescue` handleParseError
-  exists <- liftIO $ userExists pipe user
-  if user /= "" && claim /= "" && claim `member` allowedClaims && exists
-    then do
-      updated <- updateClaim pipe user claim True
-      if updated
-        then S.status status200
-        else S.status status501
-    else S.status status400
+  status <- liftIO $ isValidClaimReq pipe user claim allowedClaims True
+  S.status status
 
 login :: M.Pipe -> S.ActionM ()
 login pipe = do

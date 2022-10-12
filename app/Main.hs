@@ -25,7 +25,7 @@ main = do
           let claims = settingsClaims s
           S.post "/" $ createUser pipe claims
           S.delete "/" $ deleteUser pipe
-          S.delete "/claim" $ deleteClaim pipe
+          S.delete "/claim" $ deleteClaim pipe claims
           S.put "/claim" $ addClaim pipe claims
           S.post "/login" $ login pipe
           S.notFound $ S.status status404
