@@ -3,9 +3,7 @@
 
 module Routes where
 
-import           Control.Monad.IO.Class (liftIO)
 import           Model
-import           Control.Monad (unless)
 import qualified Database.MongoDB as M
 import qualified Web.Scotty as S
 import           Network.HTTP.Types
@@ -14,6 +12,9 @@ import qualified ModelWeb as ME
 import           Data.Maybe (fromJust)
 import           Data.Set
 import qualified Data.Text as T
+import           Control.Monad.Reader
+
+data Environment = Environment { pipe :: M.Pipe, allowedClaims :: Set T.Text }
 
 handleParseError :: Monoid a => Text -> S.ActionM a
 handleParseError e = do
@@ -21,59 +22,67 @@ handleParseError e = do
   S.status status400
   return mempty
 
-createUser :: M.Pipe -> Set T.Text -> S.ActionM ()
-createUser pipe initialClaims = do
-  user <- S.jsonData `S.rescue` handleParseError
-  unless (ME.isEmptyCreateUser user)
+createUser :: ReaderT Environment S.ActionM ()
+createUser = do
+  Environment thePipe theAllowedClaims <- ask
+  user <- lift $ S.jsonData `S.rescue` handleParseError
+  lift
+    $ unless (ME.isEmptyCreateUser user)
     $ do
-      exists <- liftIO $ userExists pipe (ME.userName user)
+      exists <- liftIO $ userExists thePipe (ME.userName user)
       if exists
         then S.status status401
         else do
           newUser <- liftIO $ ME.newUser user
-          insertUser pipe initialClaims newUser
+          insertUser thePipe theAllowedClaims newUser
           S.status status200
 
-deleteUser :: M.Pipe -> S.ActionM ()
-deleteUser pipe = do
-  user <- S.param "user" `S.rescue` handleParseError
-  unless (user == "")
+deleteUser :: ReaderT Environment S.ActionM ()
+deleteUser = do
+  Environment thePipe _ <- ask
+  user <- lift $ S.param "user" `S.rescue` handleParseError
+  lift
+    $ unless (user == "")
     $ do
-      removeUser pipe user
+      removeUser thePipe user
       S.status status501
 
-isValidClaimReq
-  :: M.Pipe -> T.Text -> T.Text -> Set T.Text -> Bool -> IO Status
-isValidClaimReq pipe user claim allowedClaims on = do
-  exists <- userExists pipe user
-  if user /= "" && claim /= "" && claim `member` allowedClaims && exists
+changeClaim :: T.Text -> T.Text -> Bool -> ReaderT Environment IO Status
+changeClaim user claim on = do
+  Environment thePipe theAllowedClaims <- ask
+  exists <- liftIO $ userExists thePipe user
+  if user /= "" && claim /= "" && claim `member` theAllowedClaims && exists
     then do
-      updated <- updateClaim pipe user claim on
+      updated <- updateClaim thePipe user claim on
       if updated
         then return status200
         else return status501
     else return status400
 
-deleteClaim :: M.Pipe -> Set T.Text -> S.ActionM ()
-deleteClaim pipe allowedClaims = do
-  user <- S.param "user" `S.rescue` handleParseError
-  claim <- S.param "claim" `S.rescue` handleParseError
-  status <- liftIO $ isValidClaimReq pipe user claim allowedClaims False
-  S.status status
+deleteClaim :: ReaderT Environment S.ActionM ()
+deleteClaim = do
+  env <- ask
+  user <- lift $ S.param "user" `S.rescue` handleParseError
+  claim <- lift $ S.param "claim" `S.rescue` handleParseError
+  status <- liftIO $ runReaderT (changeClaim user claim False) env
+  lift $ S.status status
 
-addClaim :: M.Pipe -> Set T.Text -> S.ActionM ()
-addClaim pipe allowedClaims = do
-  user <- S.param "user" `S.rescue` handleParseError
-  claim <- S.param "claim" `S.rescue` handleParseError
-  status <- liftIO $ isValidClaimReq pipe user claim allowedClaims True
-  S.status status
+addClaim :: ReaderT Environment S.ActionM ()
+addClaim = do
+  env <- ask
+  user <- lift $ S.param "user" `S.rescue` handleParseError
+  claim <- lift $ S.param "claim" `S.rescue` handleParseError
+  status <- liftIO $ runReaderT (changeClaim user claim True) env
+  lift $ S.status status
 
-login :: M.Pipe -> S.ActionM ()
-login pipe = do
-  user <- S.jsonData `S.rescue` handleParseError
-  unless (ME.isEmptyCreateUser user)
+login :: ReaderT Environment S.ActionM ()
+login = do
+  Environment thePipe _ <- ask
+  user <- lift $ S.jsonData `S.rescue` handleParseError
+  lift
+    $ unless (ME.isEmptyCreateUser user)
     $ do
-      validUser <- liftIO $ getUser pipe (ME.userName user)
+      validUser <- liftIO $ getUser thePipe (ME.userName user)
       if ME.validateLogin user validUser
         then do
           S.json $ fromJust validUser

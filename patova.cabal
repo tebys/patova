@@ -21,6 +21,6 @@ executable patova
     main-is:          Main.hs
     other-modules: LoadToml Model Routes ModelWeb
     -- other-extensions:
-    build-depends:    base <5, tomland, jwt, scotty, http-types, mongoDB, text, aeson, cryptonite, bytestring, containers
+    build-depends:    base <5, tomland, jwt, scotty, http-types, mongoDB, text, aeson, cryptonite, bytestring, containers, mtl
     hs-source-dirs:   app
     default-language: Haskell2010

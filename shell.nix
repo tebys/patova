@@ -4,7 +4,7 @@ let
 
   inherit (nixpkgs) pkgs;
 
-  f = { mkDerivation, base, http-types, jwt, lib, scotty, tomland, mongoDB, text, aeson, cryptonite, bytestring, containers,
+  f = { mkDerivation, base, http-types, jwt, lib, scotty, tomland, mongoDB, text, aeson, cryptonite, bytestring, containers, mtl,
         haskell-language-server,
         ghcid,
         mongodb
@@ -15,7 +15,7 @@ let
         src = ./.;
         isLibrary = false;
         isExecutable = true;
-        executableHaskellDepends = [ base http-types jwt scotty tomland mongoDB text aeson cryptonite bytestring containers
+        executableHaskellDepends = [ base http-types jwt scotty tomland mongoDB text aeson cryptonite bytestring containers mtl
  ];
         executableSystemDepends = [ mongodb ghcid haskell-language-server ];
         license = lib.licenses.asl20;
